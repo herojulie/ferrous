@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ferrous</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #011627;
+    --surface: #01111d;
+    --panel:   #0b2942;
+    --border:  #122d42;
+    --border2: #1d3b53;
+    --text:    #d6deeb;
+    --muted:   #4b6479;
+    --accent:  #82aaff;
+    --green:   #22da6e;
+    --red:     #ef5350;
+    --yellow:  #ffcb8b;
+    --orange:  #f78c6c;
+    --mono:    'JetBrains Mono', monospace;
+    --sans:    'DM Sans', sans-serif;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; }
+
+  .app { display: grid; grid-template-columns: 240px 1fr; grid-template-rows: 48px 1fr; height: 100vh; }
+
+  /* -- Topbar -- */
+  .topbar {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar .logo { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: .04em; }
+  .topbar .logo span { color: var(--muted); }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .token-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .token-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 20px;
+    font-family: var(--mono); font-size: 11px;
+    background: var(--panel); border: 1px solid var(--border2);
+    cursor: pointer; transition: border-color .2s;
+  }
+  .token-badge:hover { border-color: var(--accent); }
+  .token-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); transition: background .4s; }
+  .token-dot.ok   { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .token-dot.miss { background: var(--red); }
+  .btn-icon {
+    background: none; border: 1px solid var(--border2); border-radius: 6px;
+    color: var(--muted); cursor: pointer; padding: 5px 10px; font-size: 12px; font-family: var(--sans);
+    transition: all .2s;
+  }
+  .btn-icon:hover { color: var(--text); border-color: var(--accent); }
+
+  /* -- Sidebar -- */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 12px 8px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .sidebar-section { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; padding: 8px 8px 4px; }
+  .saved-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border-radius: 6px; cursor: pointer;
+    transition: background .15s; border: 1px solid transparent;
+  }
+  .saved-item:hover { background: var(--panel); }
+  .saved-item .method-tag { font-family: var(--mono); font-size: 10px; font-weight: 600; width: 38px; text-align: center; padding: 2px 4px; border-radius: 3px; flex-shrink: 0; }
+  .saved-item .req-name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .saved-item .del-btn { margin-left: auto; opacity: 0; color: var(--muted); font-size: 14px; flex-shrink: 0; background: none; border: none; cursor: pointer; transition: opacity .15s, color .15s; line-height: 1; }
+  .saved-item:hover .del-btn { opacity: 1; }
+  .saved-item .del-btn:hover { color: var(--red); }
+
+  /* -- Main layout -- */
+  .main { display: flex; flex-direction: column; overflow: hidden; }
+
+  /* -- Request pane -- */
+  .request-pane { padding: 20px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 14px; }
+
+  .url-row { display: flex; gap: 8px; align-items: center; }
+  .method-select {
+    background: var(--panel); border: 1px solid var(--border2); color: var(--text);
+    border-radius: 7px; padding: 8px 12px; font-family: var(--mono); font-size: 13px; font-weight: 600;
+    cursor: pointer; outline: none; appearance: none; min-width: 90px;
+  }
+  .method-select:focus { border-color: var(--accent); }
+  .url-input {
+    flex: 1; background: var(--panel); border: 1px solid var(--border2); color: var(--text);
+    border-radius: 7px; padding: 8px 14px; font-family: var(--mono); font-size: 13px;
+    outline: none; transition: border-color .2s;
+  }
+  .url-input:focus { border-color: var(--accent); }
+  .url-input::placeholder { color: var(--muted); }
+  .send-btn {
+    background: var(--accent); border: none; border-radius: 7px; color: #fff;
+    font-family: var(--sans); font-size: 13px; font-weight: 600;
+    padding: 8px 20px; cursor: pointer; transition: opacity .2s, transform .1s;
+    white-space: nowrap;
+  }
+  .send-btn:hover { opacity: .88; }
+  .send-btn:active { transform: scale(.97); }
+  .send-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* -- Tabs -- */
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 6px 14px; font-size: 12px; font-weight: 500; color: var(--muted);
+    cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color .15s, border-color .15s;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; padding-top: 10px; }
+  .tab-content.active { display: block; }
+
+  /* -- KV editor (headers) -- */
+  .kv-editor { display: flex; flex-direction: column; gap: 6px; }
+  .kv-row { display: flex; gap: 6px; align-items: center; }
+  .kv-input {
+    flex: 1; background: var(--panel); border: 1px solid var(--border2); color: var(--text);
+    border-radius: 5px; padding: 6px 10px; font-family: var(--mono); font-size: 12px; outline: none;
+    transition: border-color .15s;
+  }
+  .kv-input:focus { border-color: var(--accent); }
+  .kv-input::placeholder { color: var(--muted); }
+  .kv-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; transition: color .15s; line-height: 1; padding: 0 2px; }
+  .kv-del:hover { color: var(--red); }
+  .add-kv-btn { background: none; border: 1px dashed var(--border2); border-radius: 5px; color: var(--muted); cursor: pointer; padding: 5px 12px; font-size: 12px; transition: all .15s; width: 100%; margin-top: 4px; }
+  .add-kv-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* -- Body editor -- */
+  .body-editor {
+    width: 100%; min-height: 120px; background: var(--panel); border: 1px solid var(--border2);
+    color: var(--text); border-radius: 7px; padding: 10px 14px; font-family: var(--mono); font-size: 12px;
+    outline: none; resize: vertical; transition: border-color .2s; line-height: 1.6;
+  }
+  .body-editor:focus { border-color: var(--accent); }
+  .body-editor::placeholder { color: var(--muted); }
+
+  /* -- Options row -- */
+  .options-row { display: flex; align-items: center; gap: 16px; }
+  .profile-select-wrap { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .profile-select {
+    background: var(--panel); border: 1px solid var(--border2); color: var(--text);
+    border-radius: 5px; padding: 5px 10px; font-family: var(--mono); font-size: 12px;
+    outline: none; cursor: pointer; transition: border-color .15s; appearance: none;
+    min-width: 120px;
+  }
+  .profile-select:focus { border-color: var(--accent); }
+  .save-row { display: flex; gap: 6px; align-items: center; margin-left: auto; }
+  .save-name-input {
+    background: var(--panel); border: 1px solid var(--border2); color: var(--text);
+    border-radius: 5px; padding: 5px 10px; font-size: 12px; outline: none; width: 160px;
+    transition: border-color .15s;
+  }
+  .save-name-input:focus { border-color: var(--accent); }
+  .save-name-input::placeholder { color: var(--muted); }
+  .save-btn {
+    background: none; border: 1px solid var(--border2); border-radius: 5px; color: var(--muted);
+    cursor: pointer; padding: 5px 12px; font-size: 12px; transition: all .15s;
+  }
+  .save-btn:hover { border-color: var(--green); color: var(--green); }
+
+  /* -- Response pane -- */
+  .response-pane { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 16px 20px; gap: 10px; }
+  .response-meta { display: flex; align-items: center; gap: 12px; }
+  .status-badge { font-family: var(--mono); font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 4px; }
+  .status-2xx { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.25); }
+  .status-4xx { background: rgba(248,113,113,.12); color: var(--red); border: 1px solid rgba(248,113,113,.25); }
+  .status-5xx { background: rgba(251,146,60,.12); color: var(--orange); border: 1px solid rgba(251,146,60,.25); }
+  .elapsed { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  .response-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); }
+  .response-body-wrap { flex: 1; overflow-y: auto; border: 1px solid var(--border2); border-radius: 8px; }
+  .json-viewer { padding: 14px 16px; font-family: var(--mono); font-size: 12px; line-height: 1.7; white-space: pre-wrap; word-break: break-all; }
+
+  /* -- JSON syntax highlight colors (Night Owl) -- */
+  .j-key  { color: #82aaff; }   /* blue — object keys */
+  .j-str  { color: #ecc48d; }   /* warm sand — strings */
+  .j-num  { color: #f78c6c; }   /* orange — numbers */
+  .j-bool { color: #ff5874; }   /* pink — booleans */
+  .j-null { color: #4b6479; }   /* muted — null */
+
+  /* -- Large response warning bar -- */
+  .size-warning {
+    padding: 8px 16px;
+    background: rgba(251,191,36,.08);
+    border-bottom: 1px solid rgba(251,191,36,.2);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .size-warning span { font-size: 11px; color: var(--yellow); font-family: var(--mono); }
+  .size-warning button {
+    margin-left: auto; background: none; border: 1px solid var(--yellow);
+    border-radius: 4px; color: var(--yellow); cursor: pointer;
+    padding: 3px 10px; font-size: 11px; transition: opacity .15s;
+  }
+  .size-warning button:hover { opacity: .7; }
+
+  /* -- Empty state -- */
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 8px; color: var(--muted); }
+  .empty-state .icon { font-size: 32px; opacity: .3; }
+  .empty-state p { font-size: 13px; }
+
+  /* -- Settings modal -- */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 12px; padding: 28px; width: 560px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column; }
+  .modal h2 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .modal .subtitle { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+
+  /* Profile list */
+  .profile-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; overflow-y: auto; max-height: 180px; }
+  .profile-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: 7px; cursor: pointer;
+    background: var(--panel); border: 1px solid var(--border);
+    transition: border-color .15s;
+  }
+  .profile-row:hover, .profile-row.selected { border-color: var(--accent); }
+  .profile-row .pname { font-family: var(--mono); font-size: 12px; font-weight: 500; flex: 1; }
+  .profile-row .pdomain { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .profile-row .token-dot { flex-shrink: 0; }
+  .profile-row .p-del { margin-left: 4px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; opacity: 0; transition: opacity .15s, color .15s; line-height: 1; }
+  .profile-row:hover .p-del { opacity: 1; }
+  .profile-row .p-del:hover { color: var(--red); }
+
+  /* Profile form */
+  .profile-form { border-top: 1px solid var(--border); padding-top: 16px; }
+  .profile-form-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .field label { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .field input {
+    background: var(--panel); border: 1px solid var(--border2); color: var(--text);
+    border-radius: 6px; padding: 8px 12px; font-family: var(--mono); font-size: 13px; outline: none;
+    transition: border-color .2s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .field-row { display: flex; gap: 8px; }
+  .field-row .field { flex: 1; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+  .btn-primary { background: var(--accent); border: none; border-radius: 7px; color: #fff; font-family: var(--sans); font-size: 13px; font-weight: 600; padding: 8px 20px; cursor: pointer; transition: opacity .2s; }
+  .btn-primary:hover { opacity: .85; }
+  .btn-cancel { background: none; border: 1px solid var(--border2); border-radius: 7px; color: var(--muted); font-family: var(--sans); font-size: 13px; padding: 8px 16px; cursor: pointer; transition: all .2s; }
+  .btn-cancel:hover { border-color: var(--text); color: var(--text); }
+  .btn-new { background: none; border: 1px dashed var(--border2); border-radius: 7px; color: var(--muted); font-family: var(--sans); font-size: 12px; padding: 7px 14px; cursor: pointer; transition: all .15s; width: 100%; }
+  .btn-new:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* -- Toast notification -- */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 16px; font-size: 13px; z-index: 200; transform: translateY(8px); opacity: 0; transition: all .25s; pointer-events: none; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.ok  { border-color: rgba(74,222,128,.4); color: var(--green); }
+  .toast.err { border-color: rgba(248,113,113,.4); color: var(--red); }
+
+  /* -- Method color badges -- */
+  .m-bg-get    { background: rgba(74,222,128,.15);  color: var(--green); }
+  .m-bg-post   { background: rgba(91,143,249,.15);  color: var(--accent); }
+  .m-bg-put    { background: rgba(251,191,36,.15);  color: var(--yellow); }
+  .m-bg-patch  { background: rgba(251,146,60,.15);  color: var(--orange); }
+  .m-bg-delete { background: rgba(248,113,113,.15); color: var(--red); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 10px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="logo">ferrous<span>.rs</span></div>
+    <div class="topbar-right">
+      <div class="token-badges" id="tokenBadges">
+        <!-- populated by renderTokenBadges() -->
+      </div>
+      <button class="btn-icon" onclick="openSettings()">⚙ Profiles</button>
+    </div>
+  </header>
+
+  <!-- Sidebar: saved requests -->
+  <aside class="sidebar">
+    <div class="sidebar-section">Saved Requests</div>
+    <div id="savedList"></div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main">
+
+    <!-- Request pane -->
+    <section class="request-pane">
+      <div class="url-row">
+        <select class="method-select" id="method">
+          <option>GET</option>
+          <option>POST</option>
+          <option>PUT</option>
+          <option>PATCH</option>
+          <option>DELETE</option>
+        </select>
+        <input class="url-input" id="urlInput" type="text" placeholder="https://api.example.com/v1/resource">
+        <button class="send-btn" id="sendBtn" onclick="sendRequest()">Send ▶</button>
+      </div>
+
+      <!-- Request tabs: Headers / Body -->
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('headers', this)">Headers</div>
+          <div class="tab" onclick="switchTab('params', this)">Query Params</div>
+          <div class="tab" onclick="switchTab('body', this)">Body</div>
+        </div>
+        <div class="tab-content active" id="tab-headers">
+          <div class="kv-editor" id="headersKV"></div>
+          <button class="add-kv-btn" onclick="addKVRow('headersKV')">+ Add Header</button>
+        </div>
+        <div class="tab-content" id="tab-params">
+          <div class="kv-editor" id="paramsKV"></div>
+          <button class="add-kv-btn" onclick="addKVRow('paramsKV')">+ Add Param</button>
+        </div>
+        <div class="tab-content" id="tab-body">
+          <textarea class="body-editor" id="bodyInput" placeholder='{"key": "value"}'></textarea>
+        </div>
+
+      <!-- Profile selector + save -->
+      <div class="options-row">
+        <div class="profile-select-wrap">
+          <span>Auth profile:</span>
+          <select class="profile-select" id="profileSelect">
+            <option value="">— none —</option>
+          </select>
+        </div>
+        <div class="save-row">
+          <input class="save-name-input" id="saveNameInput" type="text" placeholder="Request name...">
+          <button class="save-btn" onclick="saveCurrentRequest()">💾 Save</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Response pane -->
+    <section class="response-pane">
+      <div class="response-meta" id="responseMeta" style="display:none">
+        <span class="status-badge" id="statusBadge"></span>
+        <span class="elapsed" id="elapsedLabel"></span>
+      </div>
+      <div class="response-tabs" id="responseTabs" style="display:none">
+        <div class="tab active" onclick="switchResTab('body', this)">Body</div>
+        <div class="tab" onclick="switchResTab('headers', this)">Response Headers</div>
+      </div>
+      <div class="response-body-wrap" id="responseWrap">
+        <div class="empty-state">
+          <div class="icon">◎</div>
+          <p>Send a request to see the response here</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h2>Auth0 Profiles</h2>
+    <p class="subtitle">Each profile holds one set of client credentials · stored in config.json</p>
+
+    <!-- Existing profiles list -->
+    <div class="profile-list" id="profileList"><!-- filled by renderProfileList() --></div>
+    <button class="btn-new" onclick="startNewProfile()">+ New Profile</button>
+
+    <!-- Add / Edit form -->
+    <div class="profile-form" id="profileForm" style="display:none">
+      <div class="profile-form-title" id="profileFormTitle">New Profile</div>
+      <div class="field">
+        <label>Profile Name</label>
+        <input type="text" id="cfg_name" placeholder="e.g. payments, analytics">
+      </div>
+      <div class="field">
+        <label>Note</label>
+        <input type="text" id="cfg_note" placeholder="e.g. Fixbot">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Domain</label>
+          <input type="text" id="cfg_domain" placeholder="tenant.auth0.com">
+        </div>
+        <div class="field">
+          <label>Audience</label>
+          <input type="text" id="cfg_audience" placeholder="https://api.example.com">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Client ID</label>
+          <input type="text" id="cfg_client_id">
+        </div>
+        <div class="field">
+          <label>Client Secret</label>
+          <input type="password" id="cfg_secret" placeholder="leave blank to keep existing">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="cancelProfileForm()">Cancel</button>
+        <button class="btn-primary" onclick="saveProfile()">Save Profile</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────
+let currentResBody    = null;
+let currentResHeaders = null;
+let savedRequests     = [];
+let profiles          = {};      // { name: { domain, client_id, audience, client_secret } }
+let tokenStatus       = {};      // { name: secs_remaining }
+let editingProfile    = null;    // name string when editing, null when adding new
+
+const SIZE_LIMIT    = 100 * 1024;
+const PREVIEW_LINES = 500;
+
+// ── Init ──────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  addKVRow('headersKV');
+  loadSaved();
+  loadProfiles();
+  setInterval(checkTokenStatus, 30000);
+});
+
+// ── Profiles ──────────────────────────────────────────────────
+async function loadProfiles() {
+  try {
+    const res  = await fetch('/api/profiles');
+    profiles   = await res.json();
+  } catch(e) { profiles = {}; }
+  renderProfileSelect();
+  await checkTokenStatus();
+}
+
+// ── Token status ──────────────────────────────────────────────
+async function checkTokenStatus() {
+  try {
+    const res   = await fetch('/api/token-status');
+    tokenStatus = await res.json();   // { profileName: secs, ... }
+  } catch(e) { tokenStatus = {}; }
+  renderTokenBadges();
+}
+
+function renderTokenBadges() {
+  const wrap = document.getElementById('tokenBadges');
+  const names = Object.keys(profiles);
+  if (!names.length) {
+    wrap.innerHTML = '<span style="font-size:11px;color:var(--muted);font-family:var(--mono)">no profiles</span>';
+    return;
+  }
+  wrap.innerHTML = names.map(name => {
+    const secs = tokenStatus[name];
+    const ok   = secs !== undefined && secs > 0;
+    const label = ok
+      ? `${name} ${Math.floor(secs/60)}m${secs%60}s`
+      : name;
+    return `<div class="token-badge" onclick="refreshToken('${esc(name)}')" title="Click to force refresh">
+      <div class="token-dot ${ok ? 'ok' : 'miss'}"></div>
+      <span>${escHtml(label)}</span>
+    </div>`;
+  }).join('');
+}
+
+async function refreshToken(name) {
+  await fetch(`/api/token/refresh/${encodeURIComponent(name)}`, { method: 'POST' });
+  await checkTokenStatus();1
+}
+
+// ── Profile select dropdown ───────────────────────────────────
+function renderProfileSelect() {
+  const sel  = document.getElementById('profileSelect');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— none —</option>' +
+    Object.keys(profiles).map(n =>
+      `<option value="${esc(n)}" ${n === prev ? 'selected' : ''}>${escHtml(n)}</option>`
+    ).join('');
+}
+
+// ── Settings modal ────────────────────────────────────────────
+async function openSettings() {
+  await loadProfiles();
+  renderProfileList();
+  document.getElementById('profileForm').style.display = 'none';
+  document.getElementById('settingsModal').classList.add('open');
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('open');
+}
+
+document.getElementById('settingsModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeSettings();
+});
+
+function renderProfileList() {
+  const list  = document.getElementById('profileList');
+  const names = Object.keys(profiles);
+  if (!names.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0">No profiles yet — add one below.</div>';
+    return;
+  }
+  list.innerHTML = names.map(name => {
+    const p    = profiles[name];
+    const secs = tokenStatus[name];
+    const ok   = secs !== undefined && secs > 0;
+    return `<div class="profile-row" onclick="editProfile('${esc(name)}')">
+      <div class="token-dot ${ok ? 'ok' : 'miss'}"></div>
+      <span class="pname">${escHtml(name)}</span>
+      <span class="pdomain">${escHtml(p.note ?? p.domain)}</span>
+      <button class="p-del" onclick="deleteProfile(event,'${esc(name)}')">×</button>
+    </div>`;
+  }).join('');
+}
+
+function startNewProfile() {
+  editingProfile = null;
+  document.getElementById('profileFormTitle').textContent = 'New Profile';
+  document.getElementById('cfg_name').value      = '';
+  document.getElementById('cfg_name').disabled   = false;
+  document.getElementById('cfg_domain').value    = '';
+  document.getElementById('cfg_client_id').value = '';
+  document.getElementById('cfg_secret').value    = '';
+  document.getElementById('cfg_secret').placeholder = '';
+  document.getElementById('cfg_audience').value  = '';
+  document.getElementById('profileForm').style.display = 'block';
+}
+
+function editProfile(name) {
+  editingProfile = name;
+  const p = profiles[name];
+  document.getElementById('profileFormTitle').textContent = `Edit — ${name}`;
+  document.getElementById('cfg_name').value      = name;
+  document.getElementById('cfg_name').disabled   = true;   // name is the key; don't allow renaming
+  document.getElementById('cfg_domain').value    = p.domain    || '';
+  document.getElementById('cfg_client_id').value = p.client_id || '';
+  document.getElementById('cfg_secret').value    = '';
+  document.getElementById('cfg_secret').placeholder = '••••••••  (leave blank to keep)';
+  document.getElementById('cfg_audience').value  = p.audience  || '';
+  document.getElementById('cfg_note').value  = p.note || '';
+  document.getElementById('profileForm').style.display = 'block';
+}
+
+function cancelProfileForm() {
+  document.getElementById('profileForm').style.display = 'none';
+  editingProfile = null;
+}
+
+async function saveProfile() {
+  const name   = editingProfile ?? document.getElementById('cfg_name').value.trim();
+  const secret = document.getElementById('cfg_secret').value;
+
+  if (!name)   { showToast('Enter a profile name', 'err'); return; }
+  if (!editingProfile && !secret) { showToast('Enter Client Secret', 'err'); return; }
+
+  const body = {
+    domain:        document.getElementById('cfg_domain').value.trim(),
+    client_id:     document.getElementById('cfg_client_id').value.trim(),
+    client_secret: secret || (profiles[name]?.client_secret ?? ''),
+    audience:      document.getElementById('cfg_audience').value.trim(),
+    note:          document.getElementById('cfg_note').value.trim() || null,
+  };
+
+  const res = await fetch(`/api/profiles/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (res.ok) {
+    showToast(`Profile "${name}" saved`, 'ok');
+    await loadProfiles();
+    renderProfileList();
+    cancelProfileForm();
+  } else {
+    const err = await res.json().catch(() => ({}));
+    showToast(err.detail || 'Failed to save', 'err');
+  }
+}
+
+async function deleteProfile(e, name) {
+  e.stopPropagation();
+  const res = await fetch(`/api/profiles/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  if (res.ok) {
+    showToast(`Profile "${name}" deleted`, 'ok');
+    await loadProfiles();
+    renderProfileList();
+    if (document.getElementById('cfg_name').value === name) cancelProfileForm();
+  } else {
+    showToast('Failed to delete', 'err');
+  }
+}
+
+// ── KV editor ─────────────────────────────────────────────────
+function addKVRow(containerId, key = '', val = '') {
+  const c   = document.getElementById(containerId);
+  const row = document.createElement('div');
+  row.className = 'kv-row';
+  row.innerHTML = `
+    <input class="kv-input" placeholder="Key"   value="${esc(key)}">
+    <input class="kv-input" placeholder="Value" value="${esc(val)}">
+    <button class="kv-del" onclick="this.parentElement.remove()">×</button>
+  `;
+  c.appendChild(row);
+}
+
+function getKVPairs(containerId) {
+  const obj = {};
+  document.querySelectorAll(`#${containerId} .kv-row`).forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const k = inputs[0].value.trim();
+    const v = inputs[1].value.trim();
+    if (k) obj[k] = v;
+  });
+  return obj;
+}
+
+function setKVPairs(containerId, obj) {
+  const c = document.getElementById(containerId);
+  c.innerHTML = '';
+  const entries = Object.entries(obj || {});
+  if (!entries.length) { addKVRow(containerId); return; }
+  entries.forEach(([k, v]) => addKVRow(containerId, k, v));
+}
+
+// ── Tab switching ─────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+function switchResTab(name, el) {
+  document.querySelectorAll('.response-tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderResponsePane(name);
+}
+
+// ── Send request ──────────────────────────────────────────────
+async function sendRequest() {
+  const rawUrl = document.getElementById('urlInput').value.trim();
+  if (!rawUrl) { showToast('Enter a URL', 'err'); return; }
+
+  // Merge query params tab into URL
+  const params = getKVPairs('paramsKV');
+  let url = rawUrl;
+  if (Object.keys(params).length) {
+    const base     = rawUrl.split('?')[0];
+    const existing = new URLSearchParams(rawUrl.includes('?') ? rawUrl.split('?')[1] : '');
+    Object.entries(params).forEach(([k, v]) => existing.set(k, v));
+    url = `${base}?${existing.toString()}`;
+  }
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled    = true;
+  btn.textContent = '...';
+
+  const headers = getKVPairs('headersKV');
+  let body = null;
+  const raw = document.getElementById('bodyInput').value.trim();
+  if (raw) { try { body = JSON.parse(raw); } catch { body = raw; } }
+
+  // profile: string | null
+  const profileVal = document.getElementById('profileSelect').value || null;
+
+  try {
+    const res = await fetch('/api/call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        method: document.getElementById('method').value,
+        url, headers, body,
+        profile: profileVal,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Error');
+    showResponse(data);
+    await checkTokenStatus();
+  } catch(e) {
+    showToast(e.message, 'err');
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Send ▶';
+  }
+}
+
+// ── Response rendering ────────────────────────────────────────
+function showResponse(data) {
+  currentResBody    = data.body;
+  currentResHeaders = data.headers;
+
+  document.getElementById('responseMeta').style.display = 'flex';
+  document.getElementById('responseTabs').style.display = 'flex';
+
+  const badge = document.getElementById('statusBadge');
+  badge.textContent = data.status;
+  badge.className   = 'status-badge ' +
+    (data.status < 300 ? 'status-2xx' : data.status < 500 ? 'status-4xx' : 'status-5xx');
+
+  document.getElementById('elapsedLabel').textContent = `${data.elapsed_ms} ms`;
+
+  document.querySelectorAll('.response-tabs .tab').forEach((t, i) => t.classList.toggle('active', i === 0));
+  renderResponsePane('body');
+}
+
+function renderResponsePane(mode) {
+  const wrap = document.getElementById('responseWrap');
+  const data = mode === 'body' ? currentResBody : currentResHeaders;
+  const json = JSON.stringify(data, null, 2);
+
+  if (json.length > SIZE_LIMIT) {
+    const lines     = json.split('\n');
+    const preview   = lines.slice(0, PREVIEW_LINES).join('\n');
+    const totalKB   = (json.length / 1024).toFixed(1);
+    const shownLines = Math.min(PREVIEW_LINES, lines.length);
+    wrap.innerHTML = `
+      <div class="size-warning">
+        <span>⚠ Large response — showing first ${shownLines} lines of ${totalKB}KB</span>
+        <button onclick="downloadJson()">⬇ Download full JSON</button>
+      </div>
+      <div class="json-viewer">${escHtml(preview)}</div>`;
+  } else {
+    const pretty = typeof data === 'object' ? syntaxHighlight(data) : escHtml(String(data));
+    wrap.innerHTML = `<div class="json-viewer">${pretty}</div>`;
+  }
+}
+
+function downloadJson() {
+  const blob = new Blob([JSON.stringify(currentResBody, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `response_${Date.now()}.json`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function syntaxHighlight(obj) {
+  return escHtml(JSON.stringify(obj, null, 2)).replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    match => {
+      if (/^"/.test(match)) return /:$/.test(match)
+        ? `<span class="j-key">${match}</span>`
+        : `<span class="j-str">${match}</span>`;
+      if (/true|false/.test(match)) return `<span class="j-bool">${match}</span>`;
+      if (/null/.test(match))       return `<span class="j-null">${match}</span>`;
+      return `<span class="j-num">${match}</span>`;
+    }
+  );
+}
+
+// ── Saved requests ────────────────────────────────────────────
+async function loadSaved() {
+  const res     = await fetch('/api/saved');
+  savedRequests = await res.json();
+  renderSaved();
+}
+
+function renderSaved() {
+  const list = document.getElementById('savedList');
+  if (!savedRequests.length) {
+    list.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--muted)">No saved requests</div>';
+    return;
+  }
+  list.innerHTML = savedRequests.map(s => {
+    const m = (s.request?.method || 'GET').toLowerCase();
+    return `
+      <div class="saved-item" onclick="loadSavedRequest('${esc(s.name)}')">
+        <span class="method-tag m-bg-${m}">${m.toUpperCase()}</span>
+        <span class="req-name" title="${esc(s.name)}">${escHtml(s.name)}</span>
+        <button class="del-btn" onclick="deleteSaved(event,'${esc(s.name)}')">×</button>
+      </div>`;
+  }).join('');
+}
+
+function loadSavedRequest(name) {
+  const s = savedRequests.find(r => r.name === name);
+  if (!s) return;
+  const req = s.request;
+  document.getElementById('method').value   = req.method || 'GET';
+  document.getElementById('urlInput').value = req.url    || '';
+  setKVPairs('headersKV', req.headers || {});
+  setKVPairs('paramsKV',  req.params  || {});
+  document.getElementById('bodyInput').value    = req.body ? JSON.stringify(req.body, null, 2) : '';
+  document.getElementById('profileSelect').value = req.profile || '';
+  document.getElementById('saveNameInput').value = name;
+}
+
+async function saveCurrentRequest() {
+  const name = document.getElementById('saveNameInput').value.trim();
+  if (!name) { showToast('Enter a request name', 'err'); return; }
+  let body = null;
+  const raw = document.getElementById('bodyInput').value.trim();
+  if (raw) { try { body = JSON.parse(raw); } catch { body = raw; } }
+  const req = {
+    method:  document.getElementById('method').value,
+    url:     document.getElementById('urlInput').value.trim(),
+    headers: getKVPairs('headersKV'),
+    params:  getKVPairs('paramsKV'),
+    body,
+    profile: document.getElementById('profileSelect').value || null,
+  };
+  await fetch('/api/saved', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, request: req }),
+  });
+  showToast(`"${name}" saved`, 'ok');
+  loadSaved();
+}
+
+async function deleteSaved(e, name) {
+  e.stopPropagation();
+  await fetch(`/api/saved/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  loadSaved();
+}
+
+// ── Utilities ─────────────────────────────────────────────────
+function esc(s)     { return String(s).replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+let toastTimer;
+function showToast(msg, type = 'ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
