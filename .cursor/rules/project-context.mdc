@@ -1,0 +1,15 @@
+---
+description: Core project purpose and privacy context
+alwaysApply: true
+---
+
+# Project Context
+
+- This is a personal project.
+- Primary goal: learn Rust by building practical features.
+- Secondary goal: add work-related helper functionality that must run locally for security.
+
+# Guidance For Agent
+
+- Favor local-first solutions for sensitive workflows.
+- Keep explanations clear for learning purposes, and include brief rationale for key implementation choices.

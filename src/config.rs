@@ -18,10 +18,10 @@ pub struct AppConfig {
     /// Named Auth0 credential profiles. Key is the profile name
     #[serde(default)]    
     pub profiles: HashMap<String, Auth0Config>,
-
-    /// Saved API requests
     #[serde(default)]
     pub saved_requests: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub vault_password: Option<String>,
 }
 
 fn config_path() -> PathBuf {

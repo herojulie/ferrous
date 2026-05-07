@@ -8,8 +8,11 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{collections::HashMap};
+use std::io::Write;
 use std::time::Instant;
 use reqwest::Client;
+use tokio::process::Command;
+use tempfile::NamedTempFile;
 use crate::config::{load_config, save_config, Auth0Config};
 use crate::token::TokenManager;
 
@@ -236,6 +239,108 @@ pub async fn delete_saved(
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/vault/status
+// Check vault password configuration
+// ---------------------------------------------------------------------------
+pub async fn vault_status() -> Json<Value> {
+    let cfg = load_config();
+    Json(json!({ "configured": cfg.vault_password.is_some() }))
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/vault/password
+// Save vault password
+// ---------------------------------------------------------------------------
+#[derive(Deserialize)]
+pub struct VaultPasswordPayload {
+    password: String,
+}
+
+pub async fn save_vault_password(
+    Json(payload): Json<VaultPasswordPayload>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let mut cfg = load_config();
+    cfg.vault_password = Some(payload.password);
+    save_config(&cfg).map_err(|e| (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({ "detail": e.to_string() })),
+    ))?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/vault/decrypt
+// Decrypt ansible variable
+// ---------------------------------------------------------------------------
+#[derive(Deserialize)]
+pub struct VaultDecryptPayload {
+    ciphertext: String,
+}
+
+pub async fn vault_decrypt(
+    Json(payload): Json<VaultDecryptPayload>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let cfg = load_config();
+    let password = cfg.vault_password.ok_or_else(|| (
+        StatusCode::BAD_REQUEST,
+        Json(json!({ "detail": "Vault password not configured" })),
+    ))?;
+
+    // Write password to a temp file
+    let mut pw_file = NamedTempFile::new().map_err(|e| (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({ "detail": e.to_string() })),
+    ))?;
+    pw_file.write_all(password.as_bytes()).map_err(|e| (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({ "detail": e.to_string() })),
+    ))?;
+
+    // Write ciphertext to a temp file
+    // Strip variable name prefix (e.g. "my_var: !vault |") and leading whitespace per line
+    let cleaned: String = payload.ciphertext
+    .lines()
+    .map(|l| l.trim())
+    .filter(|l| !l.is_empty() && !l.contains("!vault"))
+    .collect::<Vec<_>>()
+    .join("\n");
+
+    let mut ct_file = NamedTempFile::new().map_err(|e| (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({ "detail": e.to_string() })),    
+    ))?;
+    ct_file.write_all(cleaned.as_bytes()).map_err(|e| (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({ "detail": e.to_string() })),
+    ))?;
+
+    let output = Command::new("ansible-vault")
+    .args([
+        "decrypt",
+        "--vault-password-file", pw_file.path().to_str().unwrap(),
+        "--output", "-",    // print to stdout instead of overwriting file
+        ct_file.path().to_str().unwrap(),
+    ])
+    .output()
+    .await
+    .map_err(|e| (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({ "detail": format!("Failed to run ansible-vaule: {}", e) })),
+    ))?;
+
+    if output.status.success() {
+        let plaintext = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Ok(Json(json!({ "ok": true, "plaintext": plaintext })))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({ "detail": stderr })),
+        ))
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 pub fn router() -> Router<AppState> {
@@ -247,4 +352,7 @@ pub fn router() -> Router<AppState> {
     .route("/api/call", post(proxy_call))
     .route("/api/saved", get(get_saved).post(post_saved))
     .route("/api/saved/:name", delete(delete_saved))
+    .route("/api/vault/status", get(vault_status))
+    .route("/api/vault/password", post(save_vault_password))
+    .route("/api/vault/decrypt", post(vault_decrypt))
 }
