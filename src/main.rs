@@ -8,6 +8,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use reqwest::Client;
 use routes::{AppState, router};
 use token::TokenManager;
+use std::process::Command;
 
 #[tokio::main]
 async fn main() {
@@ -25,5 +26,16 @@ async fn main() {
     
     let listener = TcpListener::bind("127.0.0.1:8000").await.unwrap();
     println!("ferrous -> http://localhost:8000");
+    open_browser_best_effort("http://localhost:8000");
     axum::serve(listener, app).await.unwrap();
+}
+
+fn open_browser_best_effort(url: &str) {
+    if cfg!(target_os = "macos") {
+        let _ = Command::new("open").arg(url).spawn();
+    } else if cfg!(target_os = "linux") {
+        let _ = Command::new("xdg-open").arg(url).spawn();
+    } else if cfg!(target_os = "windows") {
+        let _ = Command::new("cmd").args(["/C", "start", url]).spawn();
+    }
 }
