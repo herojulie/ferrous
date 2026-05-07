@@ -83,6 +83,21 @@
   /* -- Main layout -- */
   .main { display: flex; flex-direction: column; overflow: hidden; }
 
+  /* -- Main tabs (API / Vault / ...) -- */
+  .main-tabs {
+    display: flex; align-items: center; gap: 0;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 20px; flex-shrink: 0;
+  }
+  .main-tab {
+    padding: 10px 18px; font-size: 12px; font-weight: 500; color: var(--muted);
+    cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color .15s, border-color .15s; user-select: none;
+  }
+  .main-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .main-tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+  .main-tab-content.active { display: flex; }
+
   /* -- Request pane -- */
   .request-pane { padding: 20px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 14px; }
 
@@ -266,7 +281,37 @@
   .m-bg-patch  { background: rgba(251,146,60,.15);  color: var(--orange); }
   .m-bg-delete { background: rgba(248,113,113,.15); color: var(--red); }
 
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  /* -- Vault pane -- */
+  .vault-pane { display: flex; flex-direction: column; gap: 16px; padding: 20px; flex: 1; overflow-y: auto; }
+  .vault-header { display: flex; align-items: center; justify-content: space-between; }
+  .vault-header h3 { font-size: 13px; font-weight: 600; color: var(--text); }
+  .vault-pw-status { display: flex; align-items: center; gap: 8px; font-size: 11px; font-family: var(--mono); color: var(--muted); }
+  .vault-section { display: flex; flex-direction: column; gap: 8px; }
+  .vault-label { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .vault-textarea {
+    width: 100%; background: var(--panel); border: 1px solid var(--border2); color: var(--text);
+    border-radius: 7px; padding: 10px 14px; font-family: var(--mono); font-size: 12px;
+    outline: none; resize: vertical; transition: border-color .2s; line-height: 1.6; min-height: 140px;
+  }
+  .vault-textarea:focus { border-color: var(--accent); }
+  .vault-textarea::placeholder { color: var(--muted); }
+  .vault-actions { display: flex; gap: 8px; align-items: center; }
+  .vault-result {
+    background: var(--panel); border: 1px solid var(--border2); border-radius: 7px;
+    padding: 12px 14px; font-family: var(--mono); font-size: 13px; line-height: 1.6;
+    min-height: 48px; word-break: break-all; color: var(--green); position: relative;
+  }
+  .vault-result.err { color: var(--red); }
+  .vault-result.empty { color: var(--muted); font-size: 12px; }
+  .vault-copy-btn {
+    position: absolute; top: 8px; right: 8px;
+    background: none; border: 1px solid var(--border2); border-radius: 4px;
+    color: var(--muted); cursor: pointer; padding: 3px 8px; font-size: 11px;
+    transition: all .15s;
+  }
+  .vault-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 10px; }
 </style>
@@ -294,21 +339,30 @@
   <!-- Main content -->
   <main class="main">
 
-    <!-- Request pane -->
-    <section class="request-pane">
-      <div class="url-row">
-        <select class="method-select" id="method">
-          <option>GET</option>
-          <option>POST</option>
-          <option>PUT</option>
-          <option>PATCH</option>
-          <option>DELETE</option>
-        </select>
-        <input class="url-input" id="urlInput" type="text" placeholder="https://api.example.com/v1/resource">
-        <button class="send-btn" id="sendBtn" onclick="sendRequest()">Send ▶</button>
-      </div>
+    <!-- Main tabs -->
+    <nav class="main-tabs">
+      <div class="main-tab active" onclick="switchMainTab('api', this)">API</div>
+      <div class="main-tab" onclick="switchMainTab('vault', this)">Vault</div>
+    </nav>
 
-      <!-- Request tabs: Headers / Body -->
+    <!-- ── API tab ── -->
+    <div class="main-tab-content active" id="maintab-api">
+
+      <!-- Request pane -->
+      <section class="request-pane">
+        <div class="url-row">
+          <select class="method-select" id="method">
+            <option>GET</option>
+            <option>POST</option>
+            <option>PUT</option>
+            <option>PATCH</option>
+            <option>DELETE</option>
+          </select>
+          <input class="url-input" id="urlInput" type="text" placeholder="https://api.example.com/v1/resource">
+          <button class="send-btn" id="sendBtn" onclick="sendRequest()">Send ▶</button>
+        </div>
+
+        <!-- Request tabs: Headers / Params / Body -->
         <div class="tabs">
           <div class="tab active" onclick="switchTab('headers', this)">Headers</div>
           <div class="tab" onclick="switchTab('params', this)">Query Params</div>
@@ -326,38 +380,73 @@
           <textarea class="body-editor" id="bodyInput" placeholder='{"key": "value"}'></textarea>
         </div>
 
-      <!-- Profile selector + save -->
-      <div class="options-row">
-        <div class="profile-select-wrap">
-          <span>Auth profile:</span>
-          <select class="profile-select" id="profileSelect">
-            <option value="">— none —</option>
-          </select>
+        <!-- Profile selector + save -->
+        <div class="options-row">
+          <div class="profile-select-wrap">
+            <span>Auth profile:</span>
+            <select class="profile-select" id="profileSelect">
+              <option value="">— none —</option>
+            </select>
+          </div>
+          <div class="save-row">
+            <input class="save-name-input" id="saveNameInput" type="text" placeholder="Request name...">
+            <button class="save-btn" onclick="saveCurrentRequest()">💾 Save</button>
+          </div>
         </div>
-        <div class="save-row">
-          <input class="save-name-input" id="saveNameInput" type="text" placeholder="Request name...">
-          <button class="save-btn" onclick="saveCurrentRequest()">💾 Save</button>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Response pane -->
-    <section class="response-pane">
-      <div class="response-meta" id="responseMeta" style="display:none">
-        <span class="status-badge" id="statusBadge"></span>
-        <span class="elapsed" id="elapsedLabel"></span>
-      </div>
-      <div class="response-tabs" id="responseTabs" style="display:none">
-        <div class="tab active" onclick="switchResTab('body', this)">Body</div>
-        <div class="tab" onclick="switchResTab('headers', this)">Response Headers</div>
-      </div>
-      <div class="response-body-wrap" id="responseWrap">
-        <div class="empty-state">
-          <div class="icon">◎</div>
-          <p>Send a request to see the response here</p>
+      <!-- Response pane -->
+      <section class="response-pane">
+        <div class="response-meta" id="responseMeta" style="display:none">
+          <span class="status-badge" id="statusBadge"></span>
+          <span class="elapsed" id="elapsedLabel"></span>
         </div>
+        <div class="response-tabs" id="responseTabs" style="display:none">
+          <div class="tab active" onclick="switchResTab('body', this)">Body</div>
+          <div class="tab" onclick="switchResTab('headers', this)">Response Headers</div>
+        </div>
+        <div class="response-body-wrap" id="responseWrap">
+          <div class="empty-state">
+            <div class="icon">◎</div>
+            <p>Send a request to see the response here</p>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /maintab-api -->
+
+    <!-- ── Vault tab ── -->
+    <div class="main-tab-content" id="maintab-vault">
+      <div class="vault-pane">
+
+        <div class="vault-header">
+          <h3>Ansible Vault</h3>
+          <div class="vault-pw-status">
+            <div class="token-dot" id="vaultPwDot"></div>
+            <span id="vaultPwLabel">vault password not set</span>
+            <button class="btn-icon" onclick="openVaultPwModal()">⚙ Set Password</button>
+          </div>
+        </div>
+
+        <div class="vault-section">
+          <div class="vault-label">Encrypted String</div>
+          <textarea class="vault-textarea" id="vaultInput"
+            placeholder="$ANSIBLE_VAULT;1.1;AES256&#10;3661..."></textarea>
+        </div>
+
+        <div class="vault-actions">
+          <button class="send-btn" id="vaultDecryptBtn" onclick="vaultDecrypt()">Decrypt ▶</button>
+        </div>
+
+        <div class="vault-section">
+          <div class="vault-label">Plaintext</div>
+          <div class="vault-result empty" id="vaultResult">
+            — result will appear here —
+          </div>
+        </div>
+
       </div>
-    </section>
+    </div><!-- /maintab-vault -->
 
   </main>
 </div>
@@ -378,10 +467,6 @@
       <div class="field">
         <label>Profile Name</label>
         <input type="text" id="cfg_name" placeholder="e.g. payments, analytics">
-      </div>
-      <div class="field">
-        <label>Note</label>
-        <input type="text" id="cfg_note" placeholder="e.g. Fixbot">
       </div>
       <div class="field-row">
         <div class="field">
@@ -414,6 +499,22 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<!-- Vault password modal -->
+<div class="modal-overlay" id="vaultPwModal">
+  <div class="modal">
+    <h2>Vault Password</h2>
+    <p class="subtitle">Stored in config.json · used for all ansible-vault operations</p>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="vaultPwInput" placeholder="enter vault password">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeVaultPwModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveVaultPassword()">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── State ─────────────────────────────────────────────────────
 let currentResBody    = null;
@@ -431,8 +532,17 @@ window.addEventListener('DOMContentLoaded', () => {
   addKVRow('headersKV');
   loadSaved();
   loadProfiles();
+  checkVaultStatus();
   setInterval(checkTokenStatus, 30000);
 });
+
+// ── Main tab switching ────────────────────────────────────────
+function switchMainTab(name, el) {
+  document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.main-tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('maintab-' + name).classList.add('active');
+}
 
 // ── Profiles ──────────────────────────────────────────────────
 async function loadProfiles() {
@@ -475,7 +585,7 @@ function renderTokenBadges() {
 
 async function refreshToken(name) {
   await fetch(`/api/token/refresh/${encodeURIComponent(name)}`, { method: 'POST' });
-  await checkTokenStatus();1
+  await checkTokenStatus();
 }
 
 // ── Profile select dropdown ───────────────────────────────────
@@ -518,7 +628,7 @@ function renderProfileList() {
     return `<div class="profile-row" onclick="editProfile('${esc(name)}')">
       <div class="token-dot ${ok ? 'ok' : 'miss'}"></div>
       <span class="pname">${escHtml(name)}</span>
-      <span class="pdomain">${escHtml(p.note ?? p.domain)}</span>
+      <span class="pdomain">${escHtml(p.domain)}</span>
       <button class="p-del" onclick="deleteProfile(event,'${esc(name)}')">×</button>
     </div>`;
   }).join('');
@@ -548,7 +658,6 @@ function editProfile(name) {
   document.getElementById('cfg_secret').value    = '';
   document.getElementById('cfg_secret').placeholder = '••••••••  (leave blank to keep)';
   document.getElementById('cfg_audience').value  = p.audience  || '';
-  document.getElementById('cfg_note').value  = p.note || '';
   document.getElementById('profileForm').style.display = 'block';
 }
 
@@ -569,7 +678,6 @@ async function saveProfile() {
     client_id:     document.getElementById('cfg_client_id').value.trim(),
     client_secret: secret || (profiles[name]?.client_secret ?? ''),
     audience:      document.getElementById('cfg_audience').value.trim(),
-    note:          document.getElementById('cfg_note').value.trim() || null,
   };
 
   const res = await fetch(`/api/profiles/${encodeURIComponent(name)}`, {
@@ -824,6 +932,88 @@ async function deleteSaved(e, name) {
   e.stopPropagation();
   await fetch(`/api/saved/${encodeURIComponent(name)}`, { method: 'DELETE' });
   loadSaved();
+}
+
+// ── Vault ─────────────────────────────────────────────────────
+async function checkVaultStatus() {
+  try {
+    const res  = await fetch('/api/vault/status');
+    const data = await res.json();
+    const dot   = document.getElementById('vaultPwDot');
+    const label = document.getElementById('vaultPwLabel');
+    if (data.configured) {
+      dot.className   = 'token-dot ok';
+      label.textContent = 'vault password set';
+    } else {
+      dot.className   = 'token-dot miss';
+      label.textContent = 'vault password not set';
+    }
+  } catch(e) {}
+}
+
+function openVaultPwModal() {
+  document.getElementById('vaultPwInput').value = '';
+  document.getElementById('vaultPwModal').classList.add('open');
+}
+
+function closeVaultPwModal() {
+  document.getElementById('vaultPwModal').classList.remove('open');
+}
+
+document.getElementById('vaultPwModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeVaultPwModal();
+});
+
+async function saveVaultPassword() {
+  const pw = document.getElementById('vaultPwInput').value;
+  if (!pw) { showToast('Enter a password', 'err'); return; }
+  const res = await fetch('/api/vault/password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw }),
+  });
+  if (res.ok) {
+    showToast('Vault password saved', 'ok');
+    closeVaultPwModal();
+    checkVaultStatus();
+  } else {
+    showToast('Failed to save', 'err');
+  }
+}
+
+async function vaultDecrypt() {
+  const ciphertext = document.getElementById('vaultInput').value.trim();
+  if (!ciphertext) { showToast('Paste an encrypted string', 'err'); return; }
+
+  const btn = document.getElementById('vaultDecryptBtn');
+  btn.disabled    = true;
+  btn.textContent = '...';
+
+  const result = document.getElementById('vaultResult');
+  try {
+    const res  = await fetch('/api/vault/decrypt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ciphertext }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Decryption failed');
+
+    result.className   = 'vault-result';
+    result.innerHTML   = escHtml(data.plaintext) +
+      `<button class="vault-copy-btn" onclick="copyVaultResult()">Copy</button>`;
+  } catch(e) {
+    result.className   = 'vault-result err';
+    result.textContent = e.message;
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Decrypt ▶';
+  }
+}
+
+function copyVaultResult() {
+  const text = document.getElementById('vaultResult').firstChild.textContent;
+  navigator.clipboard.writeText(text).then(() => showToast('Copied!', 'ok'));
 }
 
 // ── Utilities ─────────────────────────────────────────────────
